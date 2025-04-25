@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import thiefIcon from '../assets/Thief.png';
@@ -48,6 +49,8 @@ interface DistrictTheft {
 }
 
 export default function ElectricityTheft() {
+    const navigate = useNavigate();
+    const location = useLocation();
     const mapRef = useRef<L.Map | null>(null);
     const chartRef = useRef<HTMLDivElement>(null);
     const [thiefPosition, setThiefPosition] = useState<Position>({
@@ -72,6 +75,7 @@ export default function ElectricityTheft() {
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [analysisProgress, setAnalysisProgress] = useState(0);
     const [allDistrictThefts, setAllDistrictThefts] = useState<DistrictTheft[]>([]);
+    //@ts-ignore
     const [affectedDistricts, setAffectedDistricts] = useState<TheftArea[]>([]);
     const stateMarkersRef = useRef<{ [key: string]: L.LayerGroup }>({});
 
@@ -337,6 +341,7 @@ export default function ElectricityTheft() {
     const handleStateClick = async (state: string) => {
         setSelectedState(state);
         setIsLoadingDistricts(true);
+        navigate(`/electricity-theft?state=${encodeURIComponent(state)}`);
 
         // Show markers for this state
         showStateTheftMarkers(state);
@@ -527,6 +532,7 @@ export default function ElectricityTheft() {
 
     const districtChartOptions = {
         ...chartOptions,
+        // @ts-ignore
         onClick: (event: any, elements: any) => {
             if (elements.length > 0) {
                 const index = elements[0].index;
@@ -568,9 +574,40 @@ export default function ElectricityTheft() {
         };
     }, []);
 
+    // Add effect to handle URL state
+    useEffect(() => {
+        const params = new URLSearchParams(location.search);
+        const stateParam = params.get('state');
+        if (stateParam) {
+            setSelectedState(stateParam);
+            showStateTheftMarkers(stateParam);
+            // Load district data for the state from URL
+            const stateDistricts = places.states.find(s => s.state === stateParam)?.districts || [];
+            const districtConsumption = stateDistricts.map(district => {
+                const theftData = allDistrictThefts.find(t =>
+                    t.name === district.name && t.state === stateParam
+                );
+                return {
+                    name: district.name,
+                    consumption: Math.random() * 500 + 200,
+                    theft: theftData?.theft || 0
+                };
+            });
+            setDistrictData(districtConsumption);
+        }
+    }, [location.search]);
+
     return (
         <div className="flex flex-col items-center p-4">
-            <h1 className="text-2xl font-bold mb-4">Electricity Theft Detection</h1>
+            <div className="flex justify-between w-full mb-4">
+                <h1 className="text-2xl font-bold">Electricity Theft Detection</h1>
+                <button
+                    onClick={() => navigate('/')}
+                    className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+                >
+                    Back to Home
+                </button>
+            </div>
             <div className="flex flex-col gap-4 w-full">
                 <div className="flex gap-4 w-full">
                     <div className="w-1/3 bg-gray-100 p-4 rounded-lg">
@@ -633,7 +670,7 @@ export default function ElectricityTheft() {
                         </div>
                     </div>
                     <div className="w-2/3">
-                        <div id="map" className="h-[400px] rounded-lg shadow-lg"></div>
+                        <div id="map" className="h-[400px] rounded-lg shadow-lg relative z-0"></div>
                     </div>
                 </div>
 
@@ -642,8 +679,10 @@ export default function ElectricityTheft() {
                     <div className="h-[300px]">
                         <Line
                             data={chartData}
+                            // @ts-ignore
                             options={{
                                 ...chartOptions,
+                                // @ts-ignore
                                 onClick: (event: any, elements: any) => {
                                     if (elements.length > 0) {
                                         const index = elements[0].index;
@@ -667,6 +706,7 @@ export default function ElectricityTheft() {
                         {!isLoadingDistricts ? (
                             <>
                                 <div className="h-[300px]">
+                                    {/* @ts-ignore */}
                                     <Line data={districtChartData} options={districtChartOptions} />
                                 </div>
                                 {districtData.some(d => d.theft > 0) && (
